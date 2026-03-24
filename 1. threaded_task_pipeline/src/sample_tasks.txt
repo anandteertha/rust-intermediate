@@ -1,0 +1,5 @@
+1|Parse config file|2|high
+2|Validate user input|1|medium
+3|Generate report|3|low
+4|Archive logs|2|medium
+5|Send alert email|1|high

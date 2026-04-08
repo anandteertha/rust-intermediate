@@ -28,6 +28,7 @@ Each folder is a compact project that focuses on one important intermediate idea
 - channels
 - message passing
 - ownership across thread boundaries
+- shared ownership with `Rc<T>`
 - enums and domain modeling
 - error handling
 - shared state and synchronization
@@ -67,10 +68,11 @@ Each project lives in its own folder.
 Current structure:
 
 - `1. threaded_task_pipeline`
+- `2. Shared_Service_Configuration_with_Rc`
 
 More projects will be added over time in the same format.
 
-## Current project
+## Current projects
 
 ### `1. threaded_task_pipeline`
 
@@ -87,6 +89,20 @@ This project introduces one of the most important intermediate Rust ideas:
 
 **message passing with ownership-safe concurrency**
 
+### `2. Shared_Service_Configuration_with_Rc`
+
+A small single-threaded service-style project where:
+
+- one `AppConfig` value is created in `main`
+- the config is wrapped in `Rc<AppConfig>`
+- multiple services receive `Rc::clone(&config)`
+- auth, payments, and API gateway components all read the same shared config
+- the program demonstrates shared ownership without deep-copying the config
+
+This project introduces another core Rust intermediate idea:
+
+**shared ownership in single-threaded programs with `Rc<T>`**
+
 ## What this repo will cover
 
 This repo is designed to gradually cover topics like:
@@ -95,6 +111,7 @@ This repo is designed to gradually cover topics like:
 - channels
 - `Send` and `Sync`
 - graceful shutdown patterns
+- shared ownership with `Rc<T>`
 - `Arc` and `Mutex`
 - shared state vs message passing
 - iterator pipelines in real programs
@@ -135,6 +152,11 @@ A good way to use this repository is:
 4. understand the core concept
 5. explain the project in your own words
 6. move to the next project
+
+Suggested order right now:
+
+1. start with `1. threaded_task_pipeline`
+2. continue with `2. Shared_Service_Configuration_with_Rc`
 
 You can also use each project as:
 

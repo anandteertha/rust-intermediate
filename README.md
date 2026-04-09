@@ -29,6 +29,8 @@ Each folder is a compact project that focuses on one important intermediate idea
 - message passing
 - ownership across thread boundaries
 - shared ownership with `Rc<T>`
+- interior mutability with `RefCell<T>`
+- shared mutable state with `Rc<RefCell<T>>`
 - enums and domain modeling
 - error handling
 - shared state and synchronization
@@ -69,6 +71,7 @@ Current structure:
 
 - `1. threaded_task_pipeline`
 - `2. Shared_Service_Configuration_with_Rc`
+- `3. Shared_draft_editor`
 
 More projects will be added over time in the same format.
 
@@ -103,6 +106,20 @@ This project introduces another core Rust intermediate idea:
 
 **shared ownership in single-threaded programs with `Rc<T>`**
 
+### `3. Shared_draft_editor`
+
+A small single-threaded editing workflow where:
+
+- one `Document` is wrapped in `Rc<RefCell<Document>>`
+- a `TitleEditor` updates the title through `borrow_mut()`
+- a `BodyEditor` appends new content through `borrow_mut()`
+- a `Reviewer` reads and prints the final document through `borrow()`
+- versioning and document stats make the shared mutations easy to see
+
+This project introduces the next Rust intermediate idea:
+
+**shared mutable state in single-threaded programs with `Rc<RefCell<T>>`**
+
 ## What this repo will cover
 
 This repo is designed to gradually cover topics like:
@@ -112,6 +129,8 @@ This repo is designed to gradually cover topics like:
 - `Send` and `Sync`
 - graceful shutdown patterns
 - shared ownership with `Rc<T>`
+- interior mutability with `RefCell<T>`
+- shared mutable state with `Rc<RefCell<T>>`
 - `Arc` and `Mutex`
 - shared state vs message passing
 - iterator pipelines in real programs
@@ -157,6 +176,7 @@ Suggested order right now:
 
 1. start with `1. threaded_task_pipeline`
 2. continue with `2. Shared_Service_Configuration_with_Rc`
+3. then build `3. Shared_draft_editor`
 
 You can also use each project as:
 

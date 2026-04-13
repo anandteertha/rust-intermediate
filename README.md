@@ -72,6 +72,7 @@ Current structure:
 - `1. threaded_task_pipeline`
 - `2. Shared_Service_Configuration_with_Rc`
 - `3. Shared_draft_editor`
+- `4. concurrent_metrics_collector`
 
 More projects will be added over time in the same format.
 
@@ -119,6 +120,20 @@ A small single-threaded editing workflow where:
 This project introduces the next Rust intermediate idea:
 
 **shared mutable state in single-threaded programs with `Rc<RefCell<T>>`**
+
+### `4. concurrent_metrics_collector`
+
+A small multithreaded metrics aggregation project where:
+
+- one `Metrics` value is wrapped in `Arc<Mutex<Metrics>>`
+- three worker threads receive `Arc::clone(&metrics)`
+- each thread locks the shared metrics before updating counters
+- the main thread waits for all workers with `join()`
+- final request and error totals are printed after all updates finish
+
+This project introduces the next concurrency building block:
+
+**shared mutable state across threads with `Arc<Mutex<T>>`**
 
 ## What this repo will cover
 
@@ -177,6 +192,7 @@ Suggested order right now:
 1. start with `1. threaded_task_pipeline`
 2. continue with `2. Shared_Service_Configuration_with_Rc`
 3. then build `3. Shared_draft_editor`
+4. then move to `4. concurrent_metrics_collector`
 
 You can also use each project as:
 

@@ -1,56 +1,56 @@
-# Theory Notes - Project 005
+# Theory - Project 005
 
-## What This Project Is Really Teaching
+## What This Project Is Really About
 
-On the surface, this project is about threads and channels.
+This project is about choosing message passing over shared state.
 
-At a systems level, it is teaching something more important:
+Project 4 asked:
 
-**how to choose a coordination model**
+- how do multiple threads safely update one shared object?
 
-There are two common ways concurrent components work together:
+Project 5 asks a better architectural question for this scenario:
 
-- shared state
-- message passing
+- do they need to update shared state directly at all?
 
-Project 004 focused on shared state with `Arc<Mutex<T>>`.  
-Project 005 focuses on message passing with `mpsc`.
+In this project, the answer is no.
 
-Both are valid.  
-The real skill is knowing when each one fits.
+The producers only need to report what happened.  
+That makes message passing the cleaner coordination model.
 
-## Shared State Vs Message Passing
+## The Systems Problem
 
-### Shared State
+Several services generate activity:
 
-Shared state means multiple threads can access the same data structure.
+- login events
+- payment events
+- notification events
 
-That usually requires:
+Those events must eventually become a summary:
 
-- shared ownership such as `Arc<T>`
-- synchronized access such as `Mutex<T>`
+- total events
+- total failures
+- counts per producer
+- counts per event type
 
-This works well when several threads truly need to read or mutate the same in-memory state.
+There are two ways to design this:
 
-But it also introduces:
+- let every producer mutate a shared summary
+- let every producer send events to one aggregator
 
-- lock contention
-- critical sections
-- more reasoning about who can mutate what and when
+This project chooses the second design.
 
-### Message Passing
+## Why Message Passing Fits Better Here
 
-Message passing means one component sends data to another instead of mutating shared state directly.
+If producers only need to report facts, shared locking is often unnecessary.
 
-That usually gives:
+A message-passing design gives:
 
-- clearer ownership transfer
-- fewer shared mutable structures
-- more explicit data flow
+- cleaner ownership transfer
+- clearer separation of responsibilities
+- no lock contention on the summary itself
+- one obvious place where aggregation logic lives
 
-This works especially well when one side only needs to report events, results, or tasks.
-
-That is exactly the case in this project.
+That is a strong systems design choice, not just a Rust trick.
 
 ## The Pattern Used Here
 
@@ -60,148 +60,160 @@ This project uses a classic pattern:
 - one consumer
 - centralized aggregation
 
-Each producer thread represents a service.
-
-Each service emits `Event` values.
-
+Each worker thread produces `Event` values.  
 The receiver owns the job of:
 
-- collecting events
-- summarizing them
-- deciding when processing is complete
+- collecting them
+- classifying them
+- updating summary state
 
-This is a very common backend and systems pattern.
+This is a common event pipeline shape in backend systems.
 
 ## Why `mpsc` Fits
 
-Rust's `std::sync::mpsc` literally means:
+Rust's standard `mpsc` channel means:
 
 - multi-producer
 - single-consumer
 
-That matches the project design one-to-one.
+That matches the architecture directly:
 
-Several sender clones can exist at the same time.  
-Only one receiver owns the incoming stream.
+- several sender clones exist
+- one receiver drains the stream
 
-That receiver becomes the natural place for aggregation logic.
-
-## Ownership As A Shutdown Mechanism
-
-One of the best things about channel-based designs is that shutdown can fall out naturally from ownership rules.
-
-The receive loop continues while at least one sender still exists.
-
-When all senders are dropped:
-
-- the channel closes
-- the receiver stops blocking forever
-- the loop can exit cleanly
-
-This matters because many concurrent systems fail not during normal processing, but during shutdown and cleanup.
-
-In this project, ownership helps define shutdown behavior clearly.
+This is why the project feels so natural with channels.
 
 ## Why There Is No `Arc<Mutex<EventSummary>>`
 
-That is a deliberate design choice.
+That omission is the whole point.
 
-If the summary were wrapped in `Arc<Mutex<_>>`, then:
+If the summary were shared behind `Arc<Mutex<_>>`, then:
 
-- every producer would need to lock it
-- every producer would own part of the update logic
+- every producer would lock shared state
+- aggregation logic would be spread across many threads
 - contention would grow as producer count grows
 
-That would still be correct, but it would make the mental model noisier.
+That would be correct, but less clean for this workload.
 
-Instead, this project keeps one thread responsible for aggregation.  
-That reduces synchronization complexity and improves readability.
+In the current design:
+
+- producers create events
+- one consumer owns aggregation
+
+That separation makes the system easier to reason about.
+
+## Ownership As Protocol
+
+One of the best systems lessons in this project is shutdown behavior.
+
+The receive loop keeps running while at least one sender still exists.
+
+Once all senders are dropped:
+
+- the channel closes
+- `recv()` stops succeeding
+- the aggregation loop exits naturally
+
+This means ownership is doing double duty:
+
+- it controls memory safety
+- it also defines the lifetime of the event stream
+
+That is a powerful design pattern.
 
 ## Event-Driven Thinking
 
-This project also introduces a more event-driven mindset.
+This project helps shift the mental model from:
 
-Instead of thinking:
+- "who owns the mutable counter?"
 
-- "which thread owns this mutable counter?"
-
-you start thinking:
+to:
 
 - "what event happened?"
-- "who should consume that event?"
-- "where should aggregation happen?"
+- "who should process that event?"
+- "where should aggregation occur?"
 
-That shift matters a lot in real systems design.
+That is how a lot of real systems are designed.
 
-Many production systems are easier to build and reason about when components communicate by events rather than by directly sharing mutable state.
+Instead of many components reaching into shared state, components emit facts and downstream logic reacts to them.
+
+## Aggregation As A Separate Responsibility
+
+The project also teaches a nice architectural boundary:
+
+- event production is one responsibility
+- event summarization is another responsibility
+
+That separation matters because it keeps the system composable.
+
+You can imagine future extensions such as:
+
+- logging raw events
+- writing events to a file
+- computing rolling summaries
+- forwarding events elsewhere
+
+All of those become easier when event generation and aggregation are decoupled.
 
 ## The Role Of `HashMap`
 
-The summary uses `HashMap` for grouped counting.
+`EventSummary` uses `HashMap` to group counts by:
 
-That introduces a common data-processing pattern:
+- producer
+- event type
 
-- ingest events
-- classify events
+That introduces a stream-processing idea:
+
+- receive records
+- classify them
 - aggregate by key
-- print or export results
 
-This is useful well beyond concurrency.  
-It is also a small introduction to stream-style processing.
+This is a small but real systems data-processing pattern.
 
-## Important Rust Details Behind The Scenes
+## Important Rust Details Behind The Design
 
-### `EventType` As A Hash Key
+### `move` Closures
 
-Because `EventType` is used as a key in `HashMap<EventType, usize>`, it must implement:
+Each producer thread uses a `move` closure so it can take ownership of its sender clone.
 
-- `Eq`
-- `Hash`
+That makes thread boundaries explicit and safe.
 
-That is why the enum derives those traits.
+### Moved Events
 
-### Moved Values
+Each event is moved into the channel on `send()`.
 
-When a producer calls `send(event)`, the event is moved into the channel.
+That means there is no shared mutable event object traveling across threads.
 
-That means:
+### `Eq` And `Hash`
 
-- the sender no longer owns it
-- the receiver becomes the next owner
+`EventType` derives `Eq` and `Hash` because it is used as a key in `HashMap<EventType, usize>`.
 
-This is one reason Rust channels feel so safe: ownership transfer is part of the API.
-
-### `move` Closures In Threads
-
-Producer threads use `move` closures so each thread takes ownership of its sender clone.
-
-Without `move`, the closure would try to borrow from `main`, which does not work for spawned threads that may outlive the current scope.
+That is a small but important detail behind grouped aggregation.
 
 ## Limits Of This Design
 
-This project uses a correct and clean model, but every model has tradeoffs.
+This design is clean, but not perfect for every workload.
 
-Current limits include:
+Current tradeoffs include:
 
 - one receiver can become a bottleneck
-- standard `mpsc` does not support multiple consumers on the same receiver stream
-- event ordering between producers is nondeterministic
-- throughput is not optimized
+- event ordering across producers is nondeterministic
+- `std::sync::mpsc` is single-consumer
+- the current version is correctness-first, not throughput-first
 
-That is fine for a learning project because the goal here is correctness and design clarity first.
+That is completely fine for this stage of the repository.
 
-## Bigger Systems Ideas This Project Hints At
+## Bigger Systems Ideas This Project Introduces
 
-Even though the code is small, it introduces ideas that scale into bigger systems topics:
+Even though the program is small, it points toward larger ideas:
 
-- producer-consumer pipelines
-- centralized aggregation
-- decoupling components through events
-- graceful shutdown protocols
-- correctness before throughput
-- choosing between locks and message passing
+- event-driven architecture
+- centralized collectors
+- decoupling through channels
+- lifecycle management through channel closure
+- choosing message passing vs locks intentionally
 
-Those are real systems engineering topics, not just language exercises.
+Those are real systems topics, not just language mechanics.
 
 ## Final Mental Model
 
@@ -209,6 +221,6 @@ The best way to think about project 5 is:
 
 - producers create facts
 - channels transport facts
-- one consumer interprets and aggregates those facts
+- one consumer owns interpretation and aggregation
 
 That is the core systems lesson behind the code.

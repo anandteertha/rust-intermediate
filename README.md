@@ -73,6 +73,7 @@ Current structure:
 - `2. Shared_Service_Configuration_with_Rc`
 - `3. Shared_draft_editor`
 - `4. concurrent_metrics_collector`
+- `5. multi_producer_event_aggregator`
 
 More projects will be added over time in the same format.
 
@@ -135,6 +136,21 @@ This project introduces the next concurrency building block:
 
 **shared mutable state across threads with `Arc<Mutex<T>>`**
 
+### `5. multi_producer_event_aggregator`
+
+A small event-driven concurrency project where:
+
+- three producer threads simulate different services
+- each producer gets its own cloned `mpsc` sender
+- all producers send `Event` values into one shared channel
+- the main thread receives and aggregates those events
+- final totals are grouped by producer and by event type
+- the receiver stops naturally once all senders are dropped
+
+This project introduces the next important systems idea:
+
+**multi-producer message passing with centralized aggregation**
+
 ## What this repo will cover
 
 This repo is designed to gradually cover topics like:
@@ -148,6 +164,8 @@ This repo is designed to gradually cover topics like:
 - shared mutable state with `Rc<RefCell<T>>`
 - `Arc` and `Mutex`
 - shared state vs message passing
+- multi-producer / single-consumer channels
+- event aggregation pipelines
 - iterator pipelines in real programs
 - stronger parsing and error handling
 - task processing design
@@ -193,6 +211,7 @@ Suggested order right now:
 2. continue with `2. Shared_Service_Configuration_with_Rc`
 3. then build `3. Shared_draft_editor`
 4. then move to `4. concurrent_metrics_collector`
+5. then compare that with `5. multi_producer_event_aggregator`
 
 You can also use each project as:
 

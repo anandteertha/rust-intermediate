@@ -1,102 +1,184 @@
-## What is Shared Ownership  
+# Theory - Project 003
 
-In Rust, ownership is normally exclusive:
-one value → one owner  
+## What This Project Is Really About
 
-When ownership is transferred, the previous owner loses access  
+This project teaches one of Rust's most important design ideas:
 
----
+**ownership and mutability are separate problems**
 
-## Problem Example (Without Rc)  
+Project 2 solved shared ownership with `Rc<T>`.  
+Project 3 asks the next systems question:
 
-let doc = Document::new(...);  
-let editor = TitleEditor::new(doc);  
+- what if several parts of one program need to share the same value
+- and some of them also need to mutate it?
 
-Now:
-- doc is moved  
-- cannot use it again in main  
-- cannot pass to another editor  
+That is why this project uses `Rc<RefCell<T>>`.
 
----
+## The Systems Problem
 
-## Solution: Rc  
+The project models a shared document workflow.
 
-Rc allows:
+Different actors interact with the same document:
 
-let doc = Rc::new(Document::new(...));  
+- a title editor changes the title
+- a body editor appends content
+- a reviewer reads the final result
 
-Now:
-- multiple parts of program can own doc  
-- cloning Rc does NOT duplicate data  
+Architecturally, there is only one document.  
+But multiple components need access to it, and some need write access.
 
----
+This is a common pattern in stateful applications:
 
-## Problem: Mutation  
+- editors
+- workflows
+- UI models
+- in-memory state machines
 
-With Rc<Document>:
-- cannot mutate because only immutable access exists  
+## Why `Rc<T>` Alone Is Not Enough
 
----
+`Rc<T>` gives shared ownership, but only shared immutable access.
 
-## Solution: RefCell  
+That means several components can point to the same value, but they still cannot mutate it through ordinary borrowing rules.
 
-RefCell allows:
+This is a very important Rust lesson:
 
-- mutation through borrow_mut()  
-- reads through borrow()  
+- shared ownership does not automatically imply shared mutation
 
-This enables mutation even when Rc is shared  
+If a document is shared across several owners, Rust becomes conservative about mutable access because aliasing plus mutation is dangerous.
 
----
+## What `RefCell<T>` Adds
 
-## Combined Solution  
+`RefCell<T>` introduces interior mutability.
 
-Rc<RefCell<T>>  
+That means:
 
-This gives:
-- shared ownership  
-- shared mutation  
+- the outer owner may appear immutable
+- the inner value can still be mutably borrowed at runtime
 
----
+Instead of enforcing all borrow rules only at compile time, `RefCell<T>` enforces them at runtime.
 
-## Real-Life Analogy  
+So this project chooses:
 
-Think of a shared Google Doc:
+- compile-time shared ownership with `Rc<T>`
+- runtime borrow checking with `RefCell<T>`
 
-- many users (Rc owners)  
-- document is one (shared state)  
-- edits happen safely (RefCell control)  
+## Why This Is A Useful Systems Tradeoff
 
----
+This pattern is useful when:
 
-## Important Limitation  
+- the program is single-threaded
+- there is one shared piece of state
+- multiple components need coordinated access
+- strict compile-time borrowing would make the architecture awkward
 
-Rc<RefCell<T>> is:
-- NOT thread-safe  
+The point is not to bypass safety casually.  
+The point is to model a shared mutable workflow honestly inside a constrained, single-threaded environment.
 
-For multithreading, use:
-- Arc<Mutex<T>>  
+## The Layered Abstraction
 
----
+The real mental model is:
 
-## Key Insight  
+- `Document` is the data
+- `RefCell<Document>` controls mutable access
+- `Rc<RefCell<Document>>` lets several owners share that access point
 
-Rust separates:
-- ownership  
-- mutability  
+Each layer solves a different problem:
 
-Rc solves ownership  
-RefCell solves mutability  
+- the struct models the domain
+- `RefCell` models mutable access control
+- `Rc` models shared ownership
 
----
+That layering is one of the most important intermediate Rust ideas.
 
-## Final Mental Model  
+## Why Runtime Borrow Checking Matters
 
-Document  
-→ RefCell<Document>  
-→ Rc<RefCell<Document>>  
+`RefCell<T>` is safe, but its safety works differently from normal references.
 
-Layered abstraction:
-- data  
-- mutability control  
-- shared ownership  
+Normal references:
+
+- are checked fully at compile time
+
+`RefCell<T>`:
+
+- checks borrow rules at runtime
+
+That means the program can panic if it tries to:
+
+- borrow mutably while an immutable borrow is still active
+- borrow twice mutably at the same time
+
+So this project also teaches a deeper engineering lesson:
+
+**some flexibility is possible, but it moves certain guarantees from compile time to runtime**
+
+## Why This Project Is Still Single-Threaded
+
+`Rc<RefCell<T>>` is not thread-safe.
+
+That is not a weakness of the project.  
+It is part of the learning progression.
+
+The project stays focused on:
+
+- shared ownership
+- shared mutation
+- one thread of execution
+
+If you cross into multithreading, the design changes and you need thread-safe primitives such as:
+
+- `Arc<T>`
+- `Mutex<T>`
+
+That is exactly what the next stage of the repository explores.
+
+## What The Editor Roles Teach
+
+The project does something useful architecturally:
+
+- mutation is performed through specialized components
+- reading is performed through a reviewer
+
+That models a capability-based design:
+
+- some actors edit
+- some actors observe
+
+Even though the code is small, this is a real systems idea.  
+Large systems often become easier to reason about when responsibilities are separated by role.
+
+## Why Versioning Matters
+
+The document increments a version whenever it changes.
+
+That hints at another useful systems concept:
+
+- state transitions should be observable
+
+Versioning helps show:
+
+- when state changed
+- how many writes happened
+- that mutations are not invisible side effects
+
+This is a very small example of state tracking.
+
+## Limits Of This Design
+
+This pattern is useful, but it has clear boundaries:
+
+- single-threaded only
+- runtime borrow violations can panic
+- too much shared mutable state can still make code hard to reason about
+
+So `Rc<RefCell<T>>` is a powerful tool, but it is best used deliberately.
+
+## Final Mental Model
+
+The best way to think about project 3 is:
+
+- there is one shared document
+- multiple components need to own access to it
+- some components must mutate it
+- `Rc<RefCell<Document>>` provides shared ownership plus controlled interior mutation in a single-threaded program
+
+That is the core systems lesson behind the code.

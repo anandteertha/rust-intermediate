@@ -33,7 +33,7 @@ impl Document {
 
     pub fn display(&self) {
         println!(
-            "**********************\ndocument title: {}\n**********************",
+            "********************** {} **********************\n",
             self.title
         );
         println!("{}\nversion:{}", self.body, self.version);

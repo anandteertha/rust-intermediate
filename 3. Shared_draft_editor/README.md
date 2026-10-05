@@ -1,4 +1,4 @@
-Project 003: Shared Draft Editor (Rc<RefCell<T>>)
+# Project 003: Shared Draft Editor (Rc<RefCell<T>>)
 
 ## Overview  
 This project demonstrates shared ownership and interior mutability in Rust using Rc and RefCell.

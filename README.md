@@ -46,6 +46,8 @@ Each project lives in its own folder. The completed sequence is:
 | 004 | `4. concurrent_metrics_collector` | Shared mutable state across threads |
 | 005 | `5. multi_producer_event_aggregator` | Multiple producers and centralized aggregation |
 | 006 | `6. Bounded_Job_queue` | Bounded buffering and backpressure |
+| 007 | `7. worker_pool_and_result_collection` | Persistent workers and result collection |
+| 008 | `8. concurrency_pitfalls` | Circular wait, global lock ordering, and transaction invariants |
 
 Project documentation explains the implementation and its systems concepts. Project 006 includes `README.md`, `theory.md`, and `interview.md`.
 
@@ -132,12 +134,12 @@ Follow the numbered sequence: it moves from ownership transfer to shared ownersh
 
 ## Planned progression
 
+Projects 007 and 008 are implemented. Project 008 uses a focused account-transfer exercise to demonstrate conflicting lock orders safely and prevent circular wait through global lock ordering. See its `README.md`, `theory.md`, and `interview.md`.
+
 The following projects are planned, not completed:
 
 | Project | Focus | Question |
 | --- | --- | --- |
-| 007 | Worker pool and result collection | How can multiple workers process jobs and return results? |
-| 008 | Cancellation, timeouts, and graceful shutdown | How do we stop work and define what happens to pending jobs? |
 | 009 | Async job runner | How does coordinating asynchronous tasks differ from using threads? |
 | 010 | Async job service | How do admission, execution, and lifecycle policies fit together? |
 
@@ -157,6 +159,6 @@ Compile-time safety is an important foundation, but it does not replace systems 
 
 ## Status and participation
 
-Projects 001–006 form the completed learning sequence. The repository remains active, with more focused projects planned.
+Projects 001–008 form the completed sequence of implementations. The repository remains active, with more focused projects planned.
 
 Explore the code, run the examples, read the accompanying notes, and explain the tradeoffs in your own words. If you are learning Rust or systems programming too, follow along and build with me.
